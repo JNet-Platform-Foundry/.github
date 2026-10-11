@@ -24,7 +24,7 @@ Run the action as the last step, with `if: always()` so failed runs get a summar
 - name: Summary
   if: always()
   continue-on-error: true
-  uses: jnet-platform-factory/.github/actions/job-summary@v1
+  uses: jnet-platform-factory/.github/actions/job-summary@v0.1.0
   with:
     title: Deploy — ${{ inputs.stage }}
     status: ${{ job.status }}
@@ -43,7 +43,7 @@ summary:
   if: always()
   runs-on: ubuntu-latest
   steps:
-    - uses: jnet-platform-factory/.github/actions/job-summary@v1
+    - uses: jnet-platform-factory/.github/actions/job-summary@v0.1.0
       continue-on-error: true
       with:
         title: Release ${{ github.ref_name }}
@@ -86,15 +86,13 @@ defence in depth, not a licence to pass sensitive values.
 
 ## Versioning
 
-Callers pin `@v1`, a moving major tag. Changes land on `main` through a pull request, the
-self-test workflow renders every input on a real runner, and `v1` is then moved on purpose:
+Pin a released tag, such as `@v0.1.0`. Changes land on `main` through a pull request, the
+self-test workflow renders every input on a real runner, and the merge commit is then tagged
+and released. See [docs/maintaining.md](../../docs/maintaining.md#release).
 
-```sh
-git tag -f v1 <commit> && git push -f origin v1
-```
-
-Tags can't be protected on this organization's plan, so anyone with write access can move
-`v1`. If you need an immutable reference, pin the full commit SHA instead.
+Tags are immutable by convention: a tag is never moved or deleted, because a caller pinned
+to a missing tag fails at "Set up job". Tags can't be protected on this organization's plan,
+so if you need a guarantee, pin the full commit SHA instead.
 
 ## Development
 
