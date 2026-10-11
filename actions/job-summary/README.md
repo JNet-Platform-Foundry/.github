@@ -24,7 +24,7 @@ Run the action as the last step, with `if: always()` so failed runs get a summar
 - name: Summary
   if: always()
   continue-on-error: true
-  uses: jnet-platform-factory/.github/actions/job-summary@v1
+  uses: JNet-Platform-Foundry/.github/actions/job-summary@v1
   with:
     title: Deploy — ${{ inputs.stage }}
     status: ${{ job.status }}
@@ -43,7 +43,7 @@ summary:
   if: always()
   runs-on: ubuntu-latest
   steps:
-    - uses: jnet-platform-factory/.github/actions/job-summary@v1
+    - uses: JNet-Platform-Foundry/.github/actions/job-summary@v1
       continue-on-error: true
       with:
         title: Release ${{ github.ref_name }}

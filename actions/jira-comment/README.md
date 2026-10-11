@@ -36,7 +36,7 @@ step exits 0. It needs only `python3` and `bash`, which GitHub-hosted runners al
 - name: Jira
   if: always()
   continue-on-error: true
-  uses: jnet-platform-factory/.github/actions/jira-comment@v0.1.0
+  uses: JNet-Platform-Foundry/.github/actions/jira-comment@v0.1.0
   with:
     issue-keys: ${{ needs.configure.outputs.issue_key }}
     jira-url: ${{ vars.JIRA_URL }}

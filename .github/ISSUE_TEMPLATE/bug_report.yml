@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Before you start: if this is a **security** issue, please do not file it
-        here. See [SECURITY.md](https://github.com/jnet-platform-factory/.github/blob/main/SECURITY.md).
+        here. See [SECURITY.md](https://github.com/JNet-Platform-Foundry/.github/blob/main/SECURITY.md).
 
         These repositories are generated mirrors, so a fix arrives as a new
         version rather than as a commit here.
