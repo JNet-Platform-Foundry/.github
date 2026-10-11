@@ -7,7 +7,7 @@ I build event-driven platforms on AWS: Lambda, EventBridge, SAM, Terraform.
 ## Three layers of a platform
 
 Every multi-account AWS platform I build has the same three layers. Each layer has one job
-and an open-source starting point in [**jnet-platform-factory**](https://github.com/jnet-platform-factory).
+and an open-source starting point in **Platform Foundry** ([jnet-platform-factory](https://github.com/jnet-platform-factory)).
 
 | Layer            | The job                                                                         | Start here                                                                                                                                                                                                        |
 | ---------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
