@@ -33,7 +33,7 @@ jobs:
       - name: Report to Control
         if: always()
         continue-on-error: true
-        uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.1.0
+        uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.2.0
         with:
           environment: dev
           component: backend
@@ -56,7 +56,7 @@ jobs:
     needs: deploy
     if: always()
     permissions: { id-token: write, contents: read }
-    uses: JNet-Platform-Foundry/.github/.github/workflows/report-to-control.yml@v0.1.0
+    uses: JNet-Platform-Foundry/.github/.github/workflows/report-to-control.yml@v0.2.0
     with:
       environment: dev
       component: platform-infra
@@ -147,14 +147,17 @@ stage as long as it is one of these.
 
 ## Versioning
 
-Callers pin a release tag: **`@v0.1.0`**. Changes land on `main` through a pull request, the
+Callers pin a release tag: **`@v0.2.0`**. Changes land on `main` through a pull request, the
 self-test workflow runs every path on a real runner, and the tag is cut on the merge commit.
+
+`v0.2.0` is the first release that carries this action. `v0.1.0` predates it (it is the
+jira-comment release), so a caller pinned to `@v0.1.0` cannot resolve `report-to-control`.
 
 **The reusable workflow hard-pins the action to the same tag.** A reusable workflow can't learn
 which ref its caller pinned, and `uses: ./actions/report-to-control` would resolve against the
 _caller's_ checkout, not this repository. So
 `.github/workflows/report-to-control.yml` says
-`uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.1.0`, and **every release
+`uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.2.0`, and **every release
 bumps that pin to the new tag in the release pull request, before the tag is cut**. Forgetting
 it means the new workflow runs the previous release's action — harmless while the inputs are
 unchanged, wrong once they aren't.

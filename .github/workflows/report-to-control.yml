@@ -7,7 +7,7 @@ name: Report to Control
 #     needs: deploy
 #     if: always()
 #     permissions: { id-token: write, contents: read }
-#     uses: JNet-Platform-Foundry/.github/.github/workflows/report-to-control.yml@v0.1.0
+#     uses: JNet-Platform-Foundry/.github/.github/workflows/report-to-control.yml@v0.2.0
 #     with:
 #       environment: dev
 #       component: platform-infra
@@ -74,7 +74,7 @@ jobs:
     steps:
       - name: Report to Control
         continue-on-error: true
-        uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.1.0
+        uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.2.0
         with:
           environment: ${{ inputs.environment }}
           component: ${{ inputs.component }}
