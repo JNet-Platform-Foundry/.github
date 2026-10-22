@@ -1,0 +1,86 @@
+name: Report to Control
+
+# Reusable wrapper around actions/report-to-control, for callers that want the report as its own
+# job after a deploy, verify, migrate or provision job rather than as a step inside it:
+#
+#   report:
+#     needs: deploy
+#     if: always()
+#     permissions: { id-token: write, contents: read }
+#     uses: JNet-Platform-Foundry/.github/.github/workflows/report-to-control.yml@v0.1.0
+#     with:
+#       environment: dev
+#       component: platform-infra
+#       kind: provisioned
+#       status: ${{ needs.deploy.result }}
+#
+# The action reference below is HARD-PINNED to the release tag this file ships in. A reusable
+# workflow cannot learn which ref its caller pinned, and `./actions/...` would resolve against
+# the caller's checkout, not this repository. So every release bumps this pin to the new tag in
+# the same pull request, before the tag is cut. See actions/report-to-control/README.md.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Environment the run targeted, e.g. dev, cloud, tech.
+        required: true
+        type: string
+      component:
+        description: Component the event is about, e.g. frontend, backend, platform-infra.
+        required: true
+        type: string
+      kind:
+        description: deployed | verified | migrated | provisioned | checked
+        required: true
+        type: string
+      status:
+        description: Pass needs.<job>.result. skipped and cancelled are not reported; anything but success is a failure.
+        required: false
+        type: string
+        default: success
+      version:
+        description: Version or commit of what was deployed. Truncated to 64 characters.
+        required: false
+        type: string
+        default: ""
+      detail:
+        description: Extra context as a JSON object string, at most 4096 bytes.
+        required: false
+        type: string
+        default: ""
+      audience:
+        description: Audience of the OIDC token.
+        required: false
+        type: string
+        default: https://control.junctionnet.nl
+      endpoint:
+        description: Where to POST the report.
+        required: false
+        type: string
+        default: https://control.junctionnet.nl/api/readiness/ingest
+
+permissions: {}
+
+jobs:
+  report:
+    name: Report to Control
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    continue-on-error: true
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Report to Control
+        continue-on-error: true
+        uses: JNet-Platform-Foundry/.github/actions/report-to-control@v0.1.0
+        with:
+          environment: ${{ inputs.environment }}
+          component: ${{ inputs.component }}
+          kind: ${{ inputs.kind }}
+          status: ${{ inputs.status }}
+          version: ${{ inputs.version }}
+          detail: ${{ inputs.detail }}
+          audience: ${{ inputs.audience }}
+          endpoint: ${{ inputs.endpoint }}
