@@ -1,0 +1,209 @@
+name: report-to-control self-test
+
+on:
+  pull_request:
+    paths:
+      - "actions/report-to-control/**"
+      - ".github/workflows/report-to-control.yml"
+      - ".github/workflows/report-to-control-selftest.yml"
+  push:
+    branches: [main]
+    paths:
+      - "actions/report-to-control/**"
+      - ".github/workflows/report-to-control.yml"
+      - ".github/workflows/report-to-control-selftest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FAKE: http://127.0.0.1:8767/api/readiness/ingest
+  FAKE_LOG: /tmp/control.jsonl
+
+jobs:
+  selftest:
+    # Pull requests from forks get no OIDC token; the no-token job below covers that path.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck
+        run: shellcheck actions/report-to-control/report.sh
+
+      - name: Start fake Control
+        run: |
+          python3 actions/report-to-control/tests/fake_control.py 8767 "$FAKE_LOG" > /tmp/fake.log 2>&1 &
+          for _ in $(seq 1 50); do curl -s http://127.0.0.1:8767/ >/dev/null && break; sleep 0.1; done
+
+      # This repository is not on Control's readiness allowlist, so the real endpoint answers 403
+      # (or 401). The step must still succeed: there is no continue-on-error here on purpose.
+      - name: Real Control refuses, step still succeeds
+        id: real
+        uses: ./actions/report-to-control
+        with:
+          environment: selftest
+          component: report-to-control
+          kind: checked
+          status: ${{ job.status }}
+          version: ${{ github.sha }}
+
+      - name: Fake Control — normalised body, default status
+        id: posted
+        uses: ./actions/report-to-control
+        with:
+          audience: https://selftest.invalid
+          endpoint: ${{ env.FAKE }}
+          environment: DEV
+          component: "  Backend "
+          kind: deployed
+          version: ${{ github.sha }}${{ github.sha }}
+          detail: '{"run": "${{ github.run_id }}", "note": "self-test"}'
+
+      - name: Fake Control — unknown status is a failure
+        id: unknown
+        uses: ./actions/report-to-control
+        with:
+          audience: https://selftest.invalid
+          endpoint: ${{ env.FAKE }}
+          environment: cloud
+          component: frontend
+          kind: verified
+          status: timed_out
+
+      - name: Fake Control — explicit empty status is a failure
+        id: empty
+        uses: ./actions/report-to-control
+        with:
+          audience: https://selftest.invalid
+          endpoint: ${{ env.FAKE }}
+          environment: tech
+          component: db-migrations
+          kind: migrated
+          status: ""
+
+      - name: Fake Control — detail that is not an object is dropped
+        id: baddetail
+        uses: ./actions/report-to-control
+        with:
+          audience: https://selftest.invalid
+          endpoint: ${{ env.FAKE }}
+          environment: dev
+          component: platform-infra
+          kind: provisioned
+          detail: "[1, 2]"
+
+      - name: Skipped is not reported
+        id: skipped
+        uses: ./actions/report-to-control
+        with:
+          endpoint: ${{ env.FAKE }}
+          environment: dev
+          component: backend
+          kind: deployed
+          status: skipped
+
+      - name: Cancelled is not reported
+        id: cancelled
+        uses: ./actions/report-to-control
+        with:
+          endpoint: ${{ env.FAKE }}
+          environment: dev
+          component: backend
+          kind: deployed
+          status: cancelled
+
+      - name: Invalid input is not sent
+        id: invalid
+        uses: ./actions/report-to-control
+        with:
+          endpoint: ${{ env.FAKE }}
+          environment: "not valid!"
+          component: backend
+          kind: shipped
+
+      - name: Unreachable Control only warns
+        id: unreachable
+        uses: ./actions/report-to-control
+        with:
+          audience: https://selftest.invalid
+          endpoint: http://127.0.0.1:9/api/readiness/ingest
+          environment: dev
+          component: backend
+          kind: deployed
+
+      - name: Check outputs
+        env:
+          REAL: ${{ steps.real.outputs.result }}
+          REAL_CODE: ${{ steps.real.outputs.http-code }}
+          REAL_OUTCOME: ${{ steps.real.outcome }}
+          POSTED: ${{ steps.posted.outputs.result }}
+          POSTED_CODE: ${{ steps.posted.outputs.http-code }}
+          UNKNOWN: ${{ steps.unknown.outputs.result }}
+          EMPTY: ${{ steps.empty.outputs.result }}
+          BADDETAIL: ${{ steps.baddetail.outputs.result }}
+          SKIPPED: ${{ steps.skipped.outputs.result }}
+          CANCELLED: ${{ steps.cancelled.outputs.result }}
+          INVALID: ${{ steps.invalid.outputs.result }}
+          UNREACHABLE: ${{ steps.unreachable.outputs.result }}
+          UNREACHABLE_CODE: ${{ steps.unreachable.outputs.http-code }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "real Control: $REAL (HTTP $REAL_CODE)"
+          test "$REAL_OUTCOME" = success
+          [[ "$REAL" = rejected || "$REAL" = unreachable ]]
+          test "$POSTED" = posted
+          test "$POSTED_CODE" = 201
+          test "$UNKNOWN" = posted
+          test "$EMPTY" = posted
+          test "$BADDETAIL" = posted
+          test "$SKIPPED" = skipped
+          test "$CANCELLED" = skipped
+          test "$INVALID" = invalid
+          test "$UNREACHABLE" = unreachable
+          test "$UNREACHABLE_CODE" = 000
+
+          # Exactly the four posts above reached the fake, in order, each with a token.
+          cat "$FAKE_LOG"
+          test "$(wc -l < "$FAKE_LOG")" -eq 4
+          jq -se 'all(.[]; .has_token and .content_type == "application/json")' "$FAKE_LOG"
+          jq -se --arg v "${SHA}${SHA}" '.[0].body == {
+              environment: "dev", component: "backend", kind: "deployed", status: "success",
+              version: ($v[0:64]), detail: {run: .[0].body.detail.run, note: "self-test"}
+            }' "$FAKE_LOG"
+          jq -se '.[1].body == {environment: "cloud", component: "frontend", kind: "verified", status: "failure"}' "$FAKE_LOG"
+          jq -se '.[2].body == {environment: "tech", component: "db-migrations", kind: "migrated", status: "failure"}' "$FAKE_LOG"
+          jq -se '.[3].body == {environment: "dev", component: "platform-infra", kind: "provisioned", status: "success"}' "$FAKE_LOG"
+          echo "outputs as expected"
+
+  no-token:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Without id-token write, only warns
+        id: report
+        uses: ./actions/report-to-control
+        with:
+          environment: dev
+          component: backend
+          kind: deployed
+
+      - name: Check outputs
+        env:
+          RESULT: ${{ steps.report.outputs.result }}
+          OUTCOME: ${{ steps.report.outcome }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = success
+          test "$RESULT" = no-token
+          echo "outputs as expected"

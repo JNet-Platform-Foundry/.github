@@ -1,0 +1,66 @@
+name: Report to Control
+description: >-
+  Tell Control (control.junctionnet.nl/readiness) that a component was
+  deployed, verified, migrated, provisioned or checked in an environment.
+  Authenticated by the job's GitHub OIDC token, so there is no secret to
+  store. Never fails the job it runs in.
+
+inputs:
+  environment:
+    description: Environment the run targeted, e.g. dev, cloud, tech. Lowercased before sending.
+    required: true
+  component:
+    description: Component the event is about, e.g. frontend, backend, platform-infra. Lowercased before sending.
+    required: true
+  kind:
+    description: deployed | verified | migrated | provisioned | checked
+    required: true
+  status:
+    description: >-
+      Pass the job.status expression (or a needs.<job>.result). success is
+      reported as success; skipped and cancelled are not reported at all;
+      anything else, including an explicit empty string, is reported as failure.
+    default: success
+  version:
+    description: Version or commit of what was deployed. Truncated to 64 characters. Empty sends none.
+    default: ""
+  detail:
+    description: Extra context as a JSON object string, at most 4096 bytes. Anything else is dropped with a warning.
+    default: ""
+  audience:
+    description: Audience of the OIDC token. Control only accepts its own.
+    default: https://control.junctionnet.nl
+  endpoint:
+    description: Where to POST the report.
+    default: https://control.junctionnet.nl/api/readiness/ingest
+
+outputs:
+  result:
+    description: >-
+      What happened — posted (2xx), rejected (any other HTTP status),
+      unreachable, skipped (skipped or cancelled), invalid (bad input, nothing
+      sent) or no-token (the job lacks id-token: write).
+    value: ${{ steps.report.outputs.result }}
+  http-code:
+    description: HTTP status Control answered with, or 000 when nothing came back. Empty when nothing was sent.
+    value: ${{ steps.report.outputs.http-code }}
+
+runs:
+  using: composite
+  steps:
+    - id: report
+      shell: bash
+      env:
+        # Inputs travel as environment variables, never interpolated into the
+        # script, so a value can't inject shell.
+        RC_ENVIRONMENT: ${{ inputs.environment }}
+        RC_COMPONENT: ${{ inputs.component }}
+        RC_KIND: ${{ inputs.kind }}
+        RC_STATUS: ${{ inputs.status }}
+        RC_VERSION: ${{ inputs.version }}
+        RC_DETAIL: ${{ inputs.detail }}
+        RC_AUDIENCE: ${{ inputs.audience }}
+        RC_ENDPOINT: ${{ inputs.endpoint }}
+      run: |
+        bash "$GITHUB_ACTION_PATH/report.sh" \
+          || echo "::warning title=report-to-control::report step failed; the job is unaffected"
